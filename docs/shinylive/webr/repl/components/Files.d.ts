@@ -12,9 +12,8 @@ interface ITreeNode {
     };
 }
 export declare function createTreeFromFSNode(fsNode: FSNode): ITreeNode;
-export declare function Files({ webR, filesInterface, hidden, }: {
+export declare function Files({ webR, filesInterface, }: {
     webR: WebR;
     filesInterface: FilesInterface;
-    hidden: boolean;
 }): React.JSX.Element;
 export default Files;

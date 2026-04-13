@@ -75,15 +75,12 @@ export type FSNode = {
     };
 };
 /** An Emscripten Filesystem type */
-export type FSType = 'NODEFS' | 'WORKERFS' | 'IDBFS' | 'DRIVEFS';
+export type FSType = 'NODEFS' | 'WORKERFS' | 'IDBFS';
 /**
  * Configuration settings to be used when mounting Filesystem objects with
  * Emscripten
  */
-export type FSMountOptions<T extends FSType = FSType> = T extends 'DRIVEFS' ? {
-    driveName?: string;
-    browsingContextId?: string;
-} : T extends 'NODEFS' ? {
+export type FSMountOptions<T extends FSType = FSType> = T extends 'NODEFS' ? {
     root: string;
 } : {
     blobs?: Array<{
@@ -106,18 +103,6 @@ export type FSMetaData = {
         end: number;
     }[];
     gzip?: boolean;
-};
-/** Emscripten filesystem entry information, as given by `FS.analyzePath()` */
-export type FSAnalyzeInfo = {
-    isRoot: boolean;
-    exists: boolean;
-    error: Error;
-    name: string;
-    path: string;
-    object?: FSNode;
-    parentExists: boolean;
-    parentPath: string;
-    parentObject?: FSNode;
 };
 /**
  * The configuration settings to be used when starting webR.
@@ -224,11 +209,6 @@ export declare class WebR {
      */
     read(): Promise<Message>;
     /**
-     * Stream output messages from the communication channel via an async generator.
-     * @yields {Promise<Message>} Output messages from the communication channel.
-     */
-    stream(): AsyncGenerator<Message, void>;
-    /**
      * Flush the output queue in the communication channel and return all output
      * messages.
      * @returns {Promise<Message[]>} The output messages
@@ -289,13 +269,11 @@ export declare class WebR {
     evalRRaw(code: string, outputType: 'string[]', options?: EvalROptions): Promise<string[]>;
     invokeWasmFunction(ptr: EmPtr, ...args: number[]): Promise<EmPtr>;
     FS: {
-        analyzePath: (path: string, dontResolveLastLink?: boolean) => Promise<FSAnalyzeInfo>;
         lookupPath: (path: string) => Promise<FSNode>;
         mkdir: (path: string) => Promise<FSNode>;
         mount: <T extends FSType>(type: T, options: FSMountOptions<T>, mountpoint: string) => Promise<void>;
         syncfs: (populate: boolean) => Promise<void>;
         readFile: (path: string, flags?: string) => Promise<Uint8Array>;
-        rename: (oldpath: string, newpath: string) => Promise<void>;
         rmdir: (path: string) => Promise<void>;
         writeFile: (path: string, data: ArrayBufferView, flags?: string) => Promise<void>;
         unlink: (path: string) => Promise<void>;
