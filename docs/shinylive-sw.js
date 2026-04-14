@@ -2,44 +2,40 @@
 // Copyright 2024 Posit, PBC
 const CACHE_NAME = 'shinylive-assets-v0.2';
 
+// Funzione di utilità per decidere cosa mettere in cache
+const isCacheable = (url) => {
+  const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json', '.png', '.jpg'];
+  return cacheableExtensions.some(ext => url.pathname.endsWith(ext)) &&
+         !url.search.includes('id=') && 
+         !url.pathname.includes('/__') && 
+         !url.pathname.includes('websocket');
+};
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
-  // 1. Ignora richieste non-GET e messaggi interni vitali
-  if (event.request.method !== 'GET') return;
-  
-  // 2. Filtra solo file statici pesanti
-  const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json'];
-  const isStaticAsset = cacheableExtensions.some(ext => url.pathname.endsWith(ext));
 
-  // 3. Filtro di sicurezza per non rompere il login e la comunicazione webR
-  const isInternal = url.search.includes('id=') || 
-                     url.pathname.includes('/__') || 
-                     url.pathname.includes('websocket') ||
-                     url.pathname.includes('session');
-
-  if (isStaticAsset && !isInternal) {
+  if (event.request.method === 'GET' && isCacheable(url)) {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) => {
         return cache.match(event.request).then((cachedResponse) => {
+          // Se lo abbiamo in cache, lo restituiamo e aggiorniamo in background
           const fetchPromise = fetch(event.request).then((networkResponse) => {
             if (networkResponse.ok) {
               cache.put(event.request, networkResponse.clone());
             }
             return networkResponse;
-          }).catch(() => {
-             // Se sei offline e non è in cache, non bloccare tutto
-             return cachedResponse;
-          });
-          
-          // Strategia: Se lo hai in cache dallo subito, altrimenti aspetta la rete
+          }).catch(() => cachedResponse);
+
           return cachedResponse || fetchPromise;
         });
       })
     );
+    return; // Usciamo qui, abbiamo gestito la richiesta
   }
-  // Se non entra nell'if, il controllo passa AUTOMATICAMENTE 
-  // al codice originale di Shinylive che segue sotto.
+
+  // IMPORTANTE: Se non è un asset statico, NON chiamiamo respondWith.
+  // Questo permette al browser di cercare altri listener fetch, 
+  // incluso quello originale di Shinylive che si trova più in basso nel file.
 });
 
 var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
