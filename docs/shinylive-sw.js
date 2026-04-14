@@ -1,5 +1,34 @@
 // Shinylive 0.9.1
 // Copyright 2024 Posit, PBC
+const CACHE_NAME = 'shinylive-assets-v1';
+// Estensioni dei file pesanti da memorizzare
+const ASSETS_TO_CACHE = [
+  '.wasm',
+  '.js',
+  '.css',
+  '.json',
+  '.data'
+];
+
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  const isAsset = ASSETS_TO_CACHE.some(ext => url.pathname.endsWith(ext));
+
+  if (isAsset) {
+    event.respondWith(
+      caches.match(event.request).then((response) => {
+        // Se è in cache, lo restituisce subito, altrimenti lo scarica e lo salva
+        return response || fetch(event.request).then((fetchResponse) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, fetchResponse.clone());
+            return fetchResponse;
+          });
+        });
+      })
+    );
+  }
+});
+
 var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
   get: (a2, b) => (typeof require !== "undefined" ? require : a2)[b]
 }) : x2)(function(x2) {
