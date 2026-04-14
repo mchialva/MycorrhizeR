@@ -1,6 +1,41 @@
 // Shinylive 0.9.1
 // Copyright 2024 Posit, PBC
-const CACHE_NAME = 'shinylive-assets-v1';
+const CACHE_NAME = 'shinylive-assets-v0.2';
+
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // 1. IMPORTANTE: Ignora le richieste che non sono "GET" (es. i messaggi dell'app)
+  if (event.request.method !== 'GET') return;
+
+  // 2. Filtra solo file statici pesanti con estensioni specifiche
+  const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json'];
+  const isStaticAsset = cacheableExtensions.some(ext => url.pathname.endsWith(ext));
+
+  // 3. Escludi esplicitamente le chiamate interne di Shinylive/webR
+  // Spesso queste hanno parametri nell'URL o percorsi specifici
+  const isInternalMessaging = url.search.includes('id=') || url.pathname.includes('/__') || url.pathname.includes('websocket');
+
+  if (isStaticAsset && !isInternalMessaging) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then((cache) => {
+        return cache.match(event.request).then((cachedResponse) => {
+          const fetchPromise = fetch(event.request).then((networkResponse) => {
+            // Salva in cache solo se la risposta è valida (200 OK)
+            if (networkResponse.ok) {
+              cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          });
+          return cachedResponse || fetchPromise;
+        });
+      })
+    );
+  }
+  // Se non è un asset statico, NON fare nulla: 
+  // il browser passerà la richiesta al codice originale di Shinylive sotto.
+});
+
 // Estensioni dei file pesanti da memorizzare
 const ASSETS_TO_CACHE = [
   '.wasm',
