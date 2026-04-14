@@ -41,20 +41,6 @@
   <link rel="apple-touch-icon" href="/MycorrhizeR/web-app-manifest-192x192.png">
   <link rel="canonical" href="https://mchialva.github.io/MycorrhizeR/">
   
-  <!-- register cache sw -->
-  <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/MycorrhizeR/sw-cache.js', {
-        scope: '/MycorrhizeR/'
-      }).then(function (reg) {
-        console.log('Cache SW registrato, scope:', reg.scope);
-      }).catch(function (err) {
-        console.warn('Cache SW fallito:', err);
-      });
-    });
-  }
-</script>  
   </head>
   <body>
     
