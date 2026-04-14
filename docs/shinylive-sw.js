@@ -2,55 +2,52 @@
 // Copyright 2024 Posit, PBC
 const CACHE_NAME = 'shinylive-assets-v0.2';
 
-// 1. INSTALL: Salva i file minimi per non dare "Pagina non trovata"
+// 1. INSTALL: Non bloccare l'installazione se un file manca
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll([
-        './',
-        './index.html',
-        './app.json'
-      ]).catch(err => console.log("Errore pre-cache:", err));
+      // Proviamo a salvare i file base, ma non blocchiamo tutto se uno fallisce
+      const filesToCache = ['./', 'index.html', 'app.json'];
+      return Promise.allSettled(
+        filesToCache.map(file => cache.add(file))
+      );
     })
   );
   self.skipWaiting();
 });
 
-// 2. ACTIVATE: Prende il controllo immediato delle schede
+// 2. ACTIVATE: Pulizia cache vecchie
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((names) => {
+      return Promise.all(names.map(name => {
+        if (name !== CACHE_NAME) return caches.delete(name);
+      }));
+    })
+  );
+  return self.clients.claim();
 });
 
-// 3. FETCH: La logica di recupero file
+// 3. FETCH: Strategia "Network-First" per evitare il 404 se il file non è ancora in cache
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      // Se è in cache, lo diamo subito (fondamentale per l'offline)
-      if (cachedResponse) return cachedResponse;
-
-      // Altrimenti proviamo la rete
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200) return networkResponse;
-
-        // Se è un file che ci serve, lo salviamo per la prossima volta
-        const url = new URL(event.request.url);
-        if (url.pathname.includes('/shinylive/') || url.pathname.endsWith('.json') || url.pathname.endsWith('.html')) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+    fetch(event.request)
+      .then((response) => {
+        // Se la rete funziona, salva una copia e restituisci
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
         }
-        return networkResponse;
-      }).catch(() => {
-        // Se la rete fallisce (OFFLINE) e non abbiamo cache
-        return new Response("Sei offline e questa risorsa non è in cache.", {
-          status: 503,
-          headers: { 'Content-Type': 'text/plain' }
+        return response;
+      })
+      .catch(() => {
+        // Se la rete FALLISCE (offline), cerca nella cache
+        return caches.match(event.request).then(cached => {
+          return cached || new Response("Contenuto non disponibile offline", { status: 404 });
         });
-      });
-    })
+      })
   );
 });
 
