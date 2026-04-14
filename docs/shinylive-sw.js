@@ -1,50 +1,5 @@
 // Shinylive 0.9.1
 // Copyright 2024 Posit, PBC
-const CACHE_NAME = 'shinylive-assets-v0.2';
-
-// Funzione di utilità per decidere cosa mettere in cache
-const isCacheable = (url) => {
-  const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json', '.html'];
-  
-  // Verifica se è un file del motore (locale o CDN di webR)
-  const isWebR = url.hostname.includes('r-wasm.org') || url.pathname.includes('/shinylive/');
-  
-  // Verifica se è il codice della tua app
-  const isAppFile = url.pathname.endsWith('app.json') || url.pathname.endsWith('index.html') || url.pathname.includes('/app/');
-
-  return (isWebR || isAppFile) && 
-         cacheableExtensions.some(ext => url.pathname.endsWith(ext)) &&
-         !url.search.includes('id=') && 
-         !url.pathname.includes('websocket');
-};
-
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-
-  if (event.request.method === 'GET' && isCacheable(url)) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        // Se è in cache, dallo subito!
-        if (cachedResponse) return cachedResponse;
-
-        // Altrimenti vai in rete, scarica e salva
-        return fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const cacheCopy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
-          }
-          return networkResponse;
-        }).catch(() => {
-          // Fallback silenzioso se sei offline e non c'è in cache
-          return new Response("Offline resource not found", { status: 404 });
-        });
-      })
-    );
-    return;
-  }
-  // Se non è tra quelli cacheabili, lascia che Shinylive lo gestisca col suo codice originale
-});
-
 var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
   get: (a2, b) => (typeof require !== "undefined" ? require : a2)[b]
 }) : x2)(function(x2) {
@@ -2247,7 +2202,7 @@ function asgiToRes(res, body) {
 }
 
 // src/shinylive-sw.ts
-var useCaching = false;
+var useCaching = true;
 var cacheName = "::shinyliveServiceworker";
 var version = "v9";
 function addCoiHeaders(resp) {
@@ -2263,7 +2218,21 @@ function addCoiHeaders(resp) {
 }
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    Promise.all([self.skipWaiting(), caches.open(version + cacheName)])
+    Promise.all([
+      self.skipWaiting(),
+      caches.open(version + cacheName).then((cache) => {
+        return cache.addAll([
+          "/MycorrhizeR/",
+          "/MycorrhizeR/index.html",
+          "/MycorrhizeR/manifest.json",
+          "/MycorrhizeR/app.json",
+          "/MycorrhizeR/shinylive/shinylive.js",
+          "/MycorrhizeR/shinylive/shinylive.css",
+          "/MycorrhizeR/shinylive/style-resets.css",
+          "/MycorrhizeR/shinylive/load-shinylive-sw.js",
+        ]);
+      })
+    ])
   );
 });
 self.addEventListener("activate", function(event) {
@@ -2358,10 +2327,8 @@ self.addEventListener("fetch", function(event) {
         try {
           const networkResponse = addCoiHeaders(await fetch(request));
           const baseUrl = self.location.origin + dirname(self.location.pathname);
-          if (request.url.startsWith(baseUrl + "/shinylive/") || request.url === baseUrl + "/favicon.ico") {
-            const cache = await caches.open(version + cacheName);
-            await cache.put(request, networkResponse.clone());
-          }
+          const cache = await caches.open(version + cacheName);
+          await cache.put(request, networkResponse.clone());
           return networkResponse;
         } catch {
           return new Response("Failed to find in cache, or fetch.", {
