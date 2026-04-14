@@ -2,6 +2,25 @@
 // Copyright 2024 Posit, PBC
 const CACHE_NAME = 'shinylive-assets-v0.2';
 
+// Elenco dei file indispensabili per l'avvio offline
+const INITIAL_ASSETS = [
+  './',
+  './index.html',
+  './shinylive-sw.js',
+  './shinylive/shinylive.js', // Verifica se il percorso è corretto nella tua cartella
+  './app.json'                 // Fondamentale: contiene il tuo codice R
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('Saving assets...');
+      return cache.addAll(INITIAL_ASSETS);
+    })
+  );
+  self.skipWaiting(); // Forza l'attivazione immediata
+});
+
 // Funzione di utilità per decidere cosa mettere in cache
 const isCacheable = (url) => {
   const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json', '.html'];
