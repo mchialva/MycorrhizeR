@@ -45,11 +45,6 @@ self.addEventListener('fetch', (event) => {
   // Se non è tra quelli cacheabili, lascia che Shinylive lo gestisca col suo codice originale
 });
 
-  // IMPORTANTE: Se non è un asset statico, NON chiamiamo respondWith.
-  // Questo permette al browser di cercare altri listener fetch, 
-  // incluso quello originale di Shinylive che si trova più in basso nel file.
-});
-
 var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
   get: (a2, b) => (typeof require !== "undefined" ? require : a2)[b]
 }) : x2)(function(x2) {
