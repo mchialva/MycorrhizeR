@@ -5,63 +5,41 @@ const CACHE_NAME = 'shinylive-assets-v0.2';
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
-  // 1. IMPORTANTE: Ignora le richieste che non sono "GET" (es. i messaggi dell'app)
+  // 1. Ignora richieste non-GET e messaggi interni vitali
   if (event.request.method !== 'GET') return;
-
-  // 2. Filtra solo file statici pesanti con estensioni specifiche
+  
+  // 2. Filtra solo file statici pesanti
   const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json'];
   const isStaticAsset = cacheableExtensions.some(ext => url.pathname.endsWith(ext));
 
-  // 3. Escludi esplicitamente le chiamate interne di Shinylive/webR
-  // Spesso queste hanno parametri nell'URL o percorsi specifici
-  const isInternalMessaging = url.search.includes('id=') || url.pathname.includes('/__') || url.pathname.includes('websocket');
+  // 3. Filtro di sicurezza per non rompere il login e la comunicazione webR
+  const isInternal = url.search.includes('id=') || 
+                     url.pathname.includes('/__') || 
+                     url.pathname.includes('websocket') ||
+                     url.pathname.includes('session');
 
-  if (isStaticAsset && !isInternalMessaging) {
+  if (isStaticAsset && !isInternal) {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) => {
         return cache.match(event.request).then((cachedResponse) => {
           const fetchPromise = fetch(event.request).then((networkResponse) => {
-            // Salva in cache solo se la risposta è valida (200 OK)
             if (networkResponse.ok) {
               cache.put(event.request, networkResponse.clone());
             }
             return networkResponse;
+          }).catch(() => {
+             // Se sei offline e non è in cache, non bloccare tutto
+             return cachedResponse;
           });
+          
+          // Strategia: Se lo hai in cache dallo subito, altrimenti aspetta la rete
           return cachedResponse || fetchPromise;
         });
       })
     );
   }
-  // Se non è un asset statico, NON fare nulla: 
-  // il browser passerà la richiesta al codice originale di Shinylive sotto.
-});
-
-// Estensioni dei file pesanti da memorizzare
-const ASSETS_TO_CACHE = [
-  '.wasm',
-  '.js',
-  '.css',
-  '.json',
-  '.data'
-];
-
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  const isAsset = ASSETS_TO_CACHE.some(ext => url.pathname.endsWith(ext));
-
-  if (isAsset) {
-    event.respondWith(
-      caches.match(event.request).then((response) => {
-        // Se è in cache, lo restituisce subito, altrimenti lo scarica e lo salva
-        return response || fetch(event.request).then((fetchResponse) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, fetchResponse.clone());
-            return fetchResponse;
-          });
-        });
-      })
-    );
-  }
+  // Se non entra nell'if, il controllo passa AUTOMATICAMENTE 
+  // al codice originale di Shinylive che segue sotto.
 });
 
 var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
