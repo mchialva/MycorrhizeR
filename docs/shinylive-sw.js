@@ -2,66 +2,56 @@
 // Copyright 2024 Posit, PBC
 const CACHE_NAME = 'shinylive-assets-v0.2';
 
-// Elenco dei file indispensabili per l'avvio offline
-const INITIAL_ASSETS = [
-  './',
-  './index.html',
-  './shinylive-sw.js',
-  './shinylive/shinylive.js', // Verifica se il percorso è corretto nella tua cartella
-  './app.json'                 // Fondamentale: contiene il tuo codice R
-];
-
+// 1. INSTALL: Salva i file minimi per non dare "Pagina non trovata"
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Saving assets...');
-      return cache.addAll(INITIAL_ASSETS);
+      return cache.addAll([
+        './',
+        './index.html',
+        './app.json'
+      ]).catch(err => console.log("Errore pre-cache:", err));
     })
   );
-  self.skipWaiting(); // Forza l'attivazione immediata
+  self.skipWaiting();
 });
 
-// Funzione di utilità per decidere cosa mettere in cache
-const isCacheable = (url) => {
-  const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json', '.html'];
-  
-  // Verifica se è un file del motore (locale o CDN di webR)
-  const isWebR = url.hostname.includes('r-wasm.org') || url.pathname.includes('/shinylive/');
-  
-  // Verifica se è il codice della tua app
-  const isAppFile = url.pathname.endsWith('app.json') || url.pathname.endsWith('index.html') || url.pathname.includes('/app/');
+// 2. ACTIVATE: Prende il controllo immediato delle schede
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
 
-  return (isWebR || isAppFile) && 
-         cacheableExtensions.some(ext => url.pathname.endsWith(ext)) &&
-         !url.search.includes('id=') && 
-         !url.pathname.includes('websocket');
-};
-
+// 3. FETCH: La logica di recupero file
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  if (event.request.method !== 'GET') return;
 
-  if (event.request.method === 'GET' && isCacheable(url)) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        // Se è in cache, dallo subito!
-        if (cachedResponse) return cachedResponse;
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      // Se è in cache, lo diamo subito (fondamentale per l'offline)
+      if (cachedResponse) return cachedResponse;
 
-        // Altrimenti vai in rete, scarica e salva
-        return fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const cacheCopy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
-          }
-          return networkResponse;
-        }).catch(() => {
-          // Fallback silenzioso se sei offline e non c'è in cache
-          return new Response("Offline resource not found", { status: 404 });
+      // Altrimenti proviamo la rete
+      return fetch(event.request).then((networkResponse) => {
+        if (!networkResponse || networkResponse.status !== 200) return networkResponse;
+
+        // Se è un file che ci serve, lo salviamo per la prossima volta
+        const url = new URL(event.request.url);
+        if (url.pathname.includes('/shinylive/') || url.pathname.endsWith('.json') || url.pathname.endsWith('.html')) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        // Se la rete fallisce (OFFLINE) e non abbiamo cache
+        return new Response("Sei offline e questa risorsa non è in cache.", {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' }
         });
-      })
-    );
-    return;
-  }
-  // Se non è tra quelli cacheabili, lascia che Shinylive lo gestisca col suo codice originale
+      });
+    })
+  );
 });
 
 var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
