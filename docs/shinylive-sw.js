@@ -2,53 +2,47 @@
 // Copyright 2024 Posit, PBC
 const CACHE_NAME = 'shinylive-assets-v0.2';
 
-// 1. INSTALL: Non bloccare l'installazione se un file manca
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      // Proviamo a salvare i file base, ma non blocchiamo tutto se uno fallisce
-      const filesToCache = ['./', 'index.html', 'app.json'];
-      return Promise.allSettled(
-        filesToCache.map(file => cache.add(file))
-      );
-    })
-  );
-  self.skipWaiting();
-});
+// Funzione di utilità per decidere cosa mettere in cache
+const isCacheable = (url) => {
+  const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json', '.html'];
+  
+  // Verifica se è un file del motore (locale o CDN di webR)
+  const isWebR = url.hostname.includes('r-wasm.org') || url.pathname.includes('/shinylive/');
+  
+  // Verifica se è il codice della tua app
+  const isAppFile = url.pathname.endsWith('app.json') || url.pathname.endsWith('index.html') || url.pathname.includes('/app/');
 
-// 2. ACTIVATE: Pulizia cache vecchie
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((names) => {
-      return Promise.all(names.map(name => {
-        if (name !== CACHE_NAME) return caches.delete(name);
-      }));
-    })
-  );
-  return self.clients.claim();
-});
+  return (isWebR || isAppFile) && 
+         cacheableExtensions.some(ext => url.pathname.endsWith(ext)) &&
+         !url.search.includes('id=') && 
+         !url.pathname.includes('websocket');
+};
 
-// 3. FETCH: Strategia "Network-First" per evitare il 404 se il file non è ancora in cache
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Se la rete funziona, salva una copia e restituisci
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-        }
-        return response;
-      })
-      .catch(() => {
-        // Se la rete FALLISCE (offline), cerca nella cache
-        return caches.match(event.request).then(cached => {
-          return cached || new Response("Contenuto non disponibile offline", { status: 404 });
+  if (event.request.method === 'GET' && isCacheable(url)) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        // Se è in cache, dallo subito!
+        if (cachedResponse) return cachedResponse;
+
+        // Altrimenti vai in rete, scarica e salva
+        return fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
+          }
+          return networkResponse;
+        }).catch(() => {
+          // Fallback silenzioso se sei offline e non c'è in cache
+          return new Response("Offline resource not found", { status: 404 });
         });
       })
-  );
+    );
+    return;
+  }
+  // Se non è tra quelli cacheabili, lascia che Shinylive lo gestisca col suo codice originale
 });
 
 var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
