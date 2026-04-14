@@ -4,11 +4,16 @@ const CACHE_NAME = 'shinylive-assets-v0.2';
 
 // Funzione di utilità per decidere cosa mettere in cache
 const isCacheable = (url) => {
-  const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json', '.png', '.jpg'];
-  return cacheableExtensions.some(ext => url.pathname.endsWith(ext)) &&
+  const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json'];
+  
+  // SOLUZIONE: Metti in cache SOLO i file che stanno dentro la cartella /shinylive/
+  // I file dell'interfaccia (shiny.css, ecc.) NON stanno in quella cartella
+  const isEngineLib = url.pathname.includes('/shinylive/');
+  
+  return isEngineLib && 
+         cacheableExtensions.some(ext => url.pathname.endsWith(ext)) &&
          !url.search.includes('id=') && 
-         !url.pathname.includes('/__') && 
-         !url.pathname.includes('websocket');
+         !url.pathname.includes('/__');
 };
 
 self.addEventListener('fetch', (event) => {
