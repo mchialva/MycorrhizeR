@@ -6,17 +6,15 @@ const CACHE_NAME = 'shinylive-assets-v0.2';
 const isCacheable = (url) => {
   const cacheableExtensions = ['.wasm', '.data', '.js', '.css', '.json', '.html'];
   
-  // 1. I file del motore (shinylive/)
-  const isEngineLib = url.pathname.includes('/shinylive/');
+  // Verifica se è un file del motore (locale o CDN di webR)
+  const isWebR = url.hostname.includes('r-wasm.org') || url.pathname.includes('/shinylive/');
   
-  // 2. I file della tua app (per permettere l'avvio offline)
-  // Di solito Shinylive cerca un file chiamato 'app.json' o 'index.html'
-  const isAppData = url.pathname.endsWith('app.json') || url.pathname.endsWith('index.html');
+  // Verifica se è il codice della tua app
+  const isAppFile = url.pathname.endsWith('app.json') || url.pathname.endsWith('index.html') || url.pathname.includes('/app/');
 
-  return (isEngineLib || isAppData) && 
+  return (isWebR || isAppFile) && 
          cacheableExtensions.some(ext => url.pathname.endsWith(ext)) &&
          !url.search.includes('id=') && 
-         !url.pathname.includes('/__') &&
          !url.pathname.includes('websocket');
 };
 
@@ -25,22 +23,27 @@ self.addEventListener('fetch', (event) => {
 
   if (event.request.method === 'GET' && isCacheable(url)) {
     event.respondWith(
-      caches.open(CACHE_NAME).then((cache) => {
-        return cache.match(event.request).then((cachedResponse) => {
-          // Se lo abbiamo in cache, lo restituiamo e aggiorniamo in background
-          const fetchPromise = fetch(event.request).then((networkResponse) => {
-            if (networkResponse.ok) {
-              cache.put(event.request, networkResponse.clone());
-            }
-            return networkResponse;
-          }).catch(() => cachedResponse);
+      caches.match(event.request).then((cachedResponse) => {
+        // Se è in cache, dallo subito!
+        if (cachedResponse) return cachedResponse;
 
-          return cachedResponse || fetchPromise;
+        // Altrimenti vai in rete, scarica e salva
+        return fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
+          }
+          return networkResponse;
+        }).catch(() => {
+          // Fallback silenzioso se sei offline e non c'è in cache
+          return new Response("Offline resource not found", { status: 404 });
         });
       })
     );
-    return; // Usciamo qui, abbiamo gestito la richiesta
+    return;
   }
+  // Se non è tra quelli cacheabili, lascia che Shinylive lo gestisca col suo codice originale
+});
 
   // IMPORTANTE: Se non è un asset statico, NON chiamiamo respondWith.
   // Questo permette al browser di cercare altri listener fetch, 
