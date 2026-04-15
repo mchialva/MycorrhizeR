@@ -2253,6 +2253,8 @@ self.addEventListener("activate", function(event) {
 self.addEventListener("fetch", function(event) {
   const request = event.request;
   const url = new URL(request.url);
+  // LOG TEMPORANEO
+  console.log('[SW fetch]', url.pathname, url.hostname);
 
   // Cacha anche le risorse webR dal CDN esterno
   const isWebR = url.hostname.includes('r-wasm.org') ||
