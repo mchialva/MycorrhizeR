@@ -2231,7 +2231,16 @@ self.addEventListener("install", (event) => {
           "/MycorrhizeR/shinylive/style-resets.css",
           "/MycorrhizeR/shinylive/load-shinylive-sw.js",
           // webR package metadata: critica per l'avvio offline
-          "/MycorrhizeR/shinylive/webr/packages/metadata.rds"
+          "/MycorrhizeR/shinylive/webr/packages/metadata.rds",
+          // VFS critico emerso dagli errori/log
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations/DESCRIPTION",
+          // file che hai visto nel Network
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/parallel.js.metadata",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/parallel.data.gz",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/tcltk.js.metadata",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/tcltk.data.gz",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.js.metadata",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.data.gz"
         ]);
       })
     ])
@@ -2286,30 +2295,29 @@ self.addEventListener("fetch", function(event) {
     return;
   }
   
-  const isLocalWebR = url.pathname.startsWith("/MycorrhizeR/shinylive/webr/");
+    const isLocalWebRVFS = url.pathname.startsWith("/MycorrhizeR/shinylive/webr/vfs/");
+    const isLocalWebRPackages = url.pathname.startsWith("/MycorrhizeR/shinylive/webr/packages/");
 
-        if (isLocalWebR && request.method === "GET") {
-          event.respondWith(
-            caches.match(request).then((cached) => {
-              if (cached) return cached;
+    if ((isLocalWebRVFS || isLocalWebRPackages) && request.method === "GET") {
+      event.respondWith(
+        caches.match(request).then((cached) => {
+          if (cached) return cached;
 
-              return fetch(request).then((response) => {
-                if (response && response.status === 200) {
-                  const clone = response.clone();
-                  caches.open(version + cacheName).then((cache) => {
-                    cache.put(request, clone);
-                  });
-                }
-                return response;
-              }).catch(() => {
-                return new Response("Local webR resource not available offline", {
-                  status: 503
-                });
+          return fetch(request).then((response) => {
+            if (response && response.status === 200) {
+              const clone = response.clone();
+              caches.open(version + cacheName).then((cache) => {
+                cache.put(request, clone);
               });
-            })
-          );
-          return;
-        }
+            }
+            return response;
+          }).catch(() => {
+            return new Response("webR resource not available offline", { status: 503 });
+          });
+        })
+      );
+      return;
+    }
 
   if (url.pathname == "/esbuild")
     return;
