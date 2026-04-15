@@ -2204,7 +2204,7 @@ function asgiToRes(res, body) {
 // src/shinylive-sw.ts
 var useCaching = true;
 var cacheName = "::shinyliveServiceworker";
-var version = "v9";
+var version = "v0.2";
 function addCoiHeaders(resp) {
   const headers = new Headers(resp.headers);
   headers.set("Cross-Origin-Embedder-Policy", "credentialless");
@@ -2230,6 +2230,8 @@ self.addEventListener("install", (event) => {
           "/MycorrhizeR/shinylive/shinylive.css",
           "/MycorrhizeR/shinylive/style-resets.css",
           "/MycorrhizeR/shinylive/load-shinylive-sw.js",
+          // webR package metadata: critica per l'avvio offline
+          "/MycorrhizeR/shinylive/webr/packages/metadata.rds"
         ]);
       })
     ])
@@ -2283,6 +2285,32 @@ self.addEventListener("fetch", function(event) {
     );
     return;
   }
+  
+  const isLocalWebR = url.pathname.startsWith("/MycorrhizeR/shinylive/webr/");
+
+        if (isLocalWebR && request.method === "GET") {
+          event.respondWith(
+            caches.match(request).then((cached) => {
+              if (cached) return cached;
+
+              return fetch(request).then((response) => {
+                if (response && response.status === 200) {
+                  const clone = response.clone();
+                  caches.open(version + cacheName).then((cache) => {
+                    cache.put(request, clone);
+                  });
+                }
+                return response;
+              }).catch(() => {
+                return new Response("Local webR resource not available offline", {
+                  status: 503
+                });
+              });
+            })
+          );
+          return;
+        }
+
   if (url.pathname == "/esbuild")
     return;
   const base_path = dirname(self.location.pathname);
