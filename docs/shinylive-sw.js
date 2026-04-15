@@ -2240,7 +2240,8 @@ self.addEventListener("install", (event) => {
           "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/tcltk.js.metadata",
           "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/tcltk.data.gz",
           "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.js.metadata",
-          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.data.gz"
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.data.gz",
+          "/MycorrhizeR/shinylive/webr/vfs/etc/fonts/fonts.conf"
         ]);
       })
     ])
@@ -2339,7 +2340,7 @@ if (m_appPath) {
   event.respondWith(
     (async () => {
       try {
-        let pollCount = 20; // aumentato da 5 → ~1 secondo
+        let pollCount = 19; // aumentato da 5 → ~1 secondo
 
         while (!apps[m_appPath[1]]) {
           if (pollCount === 0) {
