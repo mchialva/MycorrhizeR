@@ -9,13 +9,33 @@
       type="module"
     ></script>
     <script type="module">
-      import { runExportedApp } from "./shinylive/shinylive.js";
-      runExportedApp({
-        id: "root",
-        appEngine: "r",
-        relPath: "",
+  import { runExportedApp } from "./shinylive/shinylive.js";
+
+  async function waitForSWController() {
+    if (!("serviceWorker" in navigator)) return;
+
+    if (navigator.serviceWorker.controller) return;
+
+    await navigator.serviceWorker.ready;
+
+    if (navigator.serviceWorker.controller) return;
+
+    await new Promise((resolve) => {
+      navigator.serviceWorker.addEventListener("controllerchange", resolve, {
+        once: true
       });
-    </script>
+    });
+  }
+
+  await waitForSWController();
+
+  await runExportedApp({
+    id: "root",
+    appEngine: "r",
+    relPath: "",
+    startupMessage: true
+  });
+</script>
     <link rel="stylesheet" href="./shinylive/style-resets.css" />
     <link rel="stylesheet" href="./shinylive/shinylive.css" />
 
