@@ -2204,7 +2204,7 @@ function asgiToRes(res, body) {
 // src/shinylive-sw.ts
 var useCaching = true;
 var cacheName = "::shinyliveServiceworker";
-var version = "v0.2";
+var version = "v0.2.1";
 function addCoiHeaders(resp) {
   const headers = new Headers(resp.headers);
   headers.set("Cross-Origin-Embedder-Policy", "credentialless");
@@ -2216,49 +2216,32 @@ function addCoiHeaders(resp) {
     headers
   });
 }
-const CORE_ASSETS = [
-  "/MycorrhizeR/",
-  "/MycorrhizeR/index.html",
-  "/MycorrhizeR/manifest.json",
-  "/MycorrhizeR/app.json",
-  "/MycorrhizeR/shinylive/shinylive.js",
-  "/MycorrhizeR/shinylive/shinylive.css",
-  "/MycorrhizeR/shinylive/style-resets.css",
-  "/MycorrhizeR/shinylive/load-shinylive-sw.js",
-  "/MycorrhizeR/precache-manifest.json"
-];
-
 self.addEventListener("install", (event) => {
-  event.waitUntil((async () => {
-    self.skipWaiting();
-    const cache = await caches.open(version + cacheName);
-    await cache.addAll(CORE_ASSETS);
-  })());
+  event.waitUntil(
+    (async () => {
+      self.skipWaiting();
+
+      const cache = await caches.open(version + cacheName);
+
+      try {
+        const res = await fetch("/MycorrhizeR/precache-manifest.json", {
+          cache: "no-store"
+        });
+
+        const urls = await res.json();
+
+        await Promise.allSettled(
+          urls.map((url) => cache.add(url))
+        );
+
+        console.log("[SW] Precache completed:", urls.length, "files");
+
+      } catch (err) {
+        console.error("[SW] Precache failed", err);
+      }
+    })()
+  );
 });
-
-async function precacheWebRAssets() {
-  try {
-    const cache = await caches.open(version + cacheName);
-
-    const res = await fetch("/MycorrhizeR/precache-manifest.json", {
-      cache: "no-store"
-    });
-    if (!res.ok) {
-      throw new Error(`Manifest fetch failed: ${res.status}`);
-    }
-
-    const urls = await res.json();
-
-    await Promise.allSettled(
-      urls.map((url) => cache.add(url))
-    );
-
-    console.log("[SW] Background precache complete:", urls.length, "files");
-  } catch (err) {
-    console.error("[SW] Background precache failed:", err);
-  }
-}
-
 self.addEventListener("activate", function(event) {
   event.waitUntil(
     (async () => {
@@ -2455,10 +2438,6 @@ var apps = {};
 })();
 self.addEventListener("message", (event) => {
   const msg = event.data;
-  if (msg && msg.type === "precache-webr-assets") {
-    event.waitUntil(precacheWebRAssets());
-    return;
-  }
   if (msg.type === "configureProxyPath") {
     const path = msg.path;
     const port = event.ports[0];

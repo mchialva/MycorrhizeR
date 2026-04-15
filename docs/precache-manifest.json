@@ -1,13 +1,4 @@
 [
-  "/MycorrhizeR/",
-  "/MycorrhizeR/index.html",
-  "/MycorrhizeR/manifest.json",
-  "/MycorrhizeR/app.json",
-  "/MycorrhizeR/shinylive/shinylive.js",
-  "/MycorrhizeR/shinylive/shinylive.css",
-  "/MycorrhizeR/shinylive/style-resets.css",
-  "/MycorrhizeR/shinylive/load-shinylive-sw.js",   
-
   "/MycorrhizeR/shinylive/webr/R.bin.js",
   "/MycorrhizeR/shinylive/webr/R.bin.wasm",
   "/MycorrhizeR/shinylive/webr/libRblas.so",

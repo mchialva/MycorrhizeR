@@ -8,14 +8,16 @@
       src="./shinylive/load-shinylive-sw.js"
       type="module"
     ></script>
-<script type="module">
+    <script type="module">
   import { runExportedApp } from "./shinylive/shinylive.js";
 
   async function waitForSWController() {
     if (!("serviceWorker" in navigator)) return;
+
     if (navigator.serviceWorker.controller) return;
 
     await navigator.serviceWorker.ready;
+
     if (navigator.serviceWorker.controller) return;
 
     await new Promise((resolve) => {
@@ -33,12 +35,6 @@
     relPath: "",
     startupMessage: true
   });
-
-  if (navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: "precache-webr-assets"
-    });
-  }
 </script>
     <link rel="stylesheet" href="./shinylive/style-resets.css" />
     <link rel="stylesheet" href="./shinylive/shinylive.css" />
