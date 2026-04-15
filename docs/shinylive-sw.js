@@ -2240,8 +2240,7 @@ self.addEventListener("install", (event) => {
           "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/tcltk.js.metadata",
           "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/tcltk.data.gz",
           "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.js.metadata",
-          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.data.gz",
-          "/MycorrhizeR/shinylive/webr/vfs/etc/fonts/fonts.conf"
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.data.gz"
         ]);
       })
     ])
@@ -2335,69 +2334,50 @@ self.addEventListener("fetch", function(event) {
   const coiRequested = url.searchParams.get("coi") === "1" || request.referrer.includes("coi=1");
   const appPathRegex = /.*\/(app_[^/]+\/)/;
   const m_appPath = appPathRegex.exec(url.pathname);
-  
-if (m_appPath) {
-  event.respondWith(
-    (async () => {
-      try {
-        let pollCount = 19; // aumentato da 5 → ~1 secondo
-
+  if (m_appPath) {
+    event.respondWith(
+      (async () => {
+        let pollCount = 5;
         while (!apps[m_appPath[1]]) {
-          if (pollCount === 0) {
+          if (pollCount == 0) {
             return new Response(
               `Couldn't find parent page for ${url}. This may be because the Service Worker has updated. Try reloading the page.`,
-              { status: 404 }
+              {
+                status: 404
+              }
             );
           }
-          console.log("[SW] App URL not registered yet, waiting...");
+          console.log("App URL not registered. Waiting 50ms.");
           await sleep(50);
           pollCount--;
         }
-
-        // normalizza il path per fetchASGI
         url.pathname = url.pathname.replace(appPathRegex, "/");
-
         const isAppRoot = url.pathname === "/";
         const filter = isAppRoot ? injectSocketFilter : identityFilter;
-
         const blob = await request.blob();
-
         const resp = await fetchASGI(
           apps[m_appPath[1]],
           new Request(url.toString(), {
             method: request.method,
             headers: request.headers,
-            body:
-              request.method === "GET" || request.method === "HEAD"
-                ? undefined
-                : blob,
+            body: request.method === "GET" || request.method === "HEAD" ? void 0 : blob,
             credentials: request.credentials,
             cache: request.cache,
             redirect: request.redirect,
             referrer: request.referrer
           }),
-          undefined,
+          void 0,
           filter
         );
-
-        return coiRequested ? addCoiHeaders(resp) : resp;
-
-      } catch (err) {
-        console.error("[SW app fetch error]", url.toString(), err);
-
-        // fallback: evita promise rejected
-        return new Response(
-          "App request failed in service worker",
-          {
-            status: 504,
-            headers: { "Content-Type": "text/plain" }
-          }
-        );
-      }
-    })()
-  );
-  return;
-}
+        if (coiRequested) {
+          return addCoiHeaders(resp);
+        } else {
+          return resp;
+        }
+      })()
+    );
+    return;
+  }
   if (request.method !== "GET") {
     return;
   }
