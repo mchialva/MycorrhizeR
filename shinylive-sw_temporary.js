@@ -1,5 +1,9 @@
 // Shinylive 0.9.1
 // Copyright 2024 Posit, PBC
+// This is a modified version on the shinylive service worker to capture all the main path used by the app.
+// After loading online the (with this temporary SW), navigate the app by testing all pages/function and then type in the browser console:
+// navigator.serviceWorker.controller.postMessage({ type: "dump-webr-paths" });
+// The command will provide with a json list of the VFS path used by the app.
 var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x2, {
   get: (a2, b) => (typeof require !== "undefined" ? require : a2)[b]
 }) : x2)(function(x2) {
@@ -10,6 +14,8 @@ var __require = /* @__PURE__ */ ((x2) => typeof require !== "undefined" ? requir
 
 // src/assets/shinylive-inject-socket.txt
 var shinylive_inject_socket_default = '// src/messageportwebsocket.ts\nvar MessagePortWebSocket = class extends EventTarget {\n  constructor(port) {\n    super();\n    this.readyState = 0;\n    this.addEventListener("open", (e) => {\n      if (this.onopen) {\n        this.onopen(e);\n      }\n    });\n    this.addEventListener("message", (e) => {\n      if (this.onmessage) {\n        this.onmessage(e);\n      }\n    });\n    this.addEventListener("error", (e) => {\n      if (this.onerror) {\n        this.onerror(e);\n      }\n    });\n    this.addEventListener("close", (e) => {\n      if (this.onclose) {\n        this.onclose(e);\n      }\n    });\n    this._port = port;\n    port.addEventListener("message", this._onMessage.bind(this));\n    port.start();\n  }\n  // Call on the server side of the connection, to tell the client that\n  // the connection has been established.\n  accept() {\n    if (this.readyState !== 0) {\n      return;\n    }\n    this.readyState = 1;\n    this._port.postMessage({ type: "open" });\n  }\n  send(data) {\n    if (this.readyState === 0) {\n      throw new DOMException(\n        "Can\'t send messages while WebSocket is in CONNECTING state",\n        "InvalidStateError"\n      );\n    }\n    if (this.readyState > 1) {\n      return;\n    }\n    this._port.postMessage({ type: "message", value: { data } });\n  }\n  close(code, reason) {\n    if (this.readyState > 1) {\n      return;\n    }\n    this.readyState = 2;\n    this._port.postMessage({ type: "close", value: { code, reason } });\n    this.readyState = 3;\n    this.dispatchEvent(new CloseEvent("close", { code, reason }));\n  }\n  _onMessage(e) {\n    const event = e.data;\n    switch (event.type) {\n      case "open":\n        if (this.readyState === 0) {\n          this.readyState = 1;\n          this.dispatchEvent(new Event("open"));\n          return;\n        }\n        break;\n      case "message":\n        if (this.readyState === 1) {\n          this.dispatchEvent(new MessageEvent("message", { ...event.value }));\n          return;\n        }\n        break;\n      case "close":\n        if (this.readyState < 3) {\n          this.readyState = 3;\n          this.dispatchEvent(new CloseEvent("close", { ...event.value }));\n          return;\n        }\n        break;\n    }\n    this._reportError(\n      `Unexpected event \'${event.type}\' while in readyState ${this.readyState}`,\n      1002\n    );\n  }\n  _reportError(message, code) {\n    this.dispatchEvent(new ErrorEvent("error", { message }));\n    if (typeof code === "number") {\n      this.close(code, message);\n    }\n  }\n};\n\n// src/shinylive-inject-socket.ts\nwindow.Shiny.createSocket = function() {\n  const channel = new MessageChannel();\n  window.parent.postMessage(\n    {\n      type: "openChannel",\n      // Infer app name from path: "/foo/app_abc123/"" => "app_abc123"\n      appName: window.location.pathname.replace(\n        new RegExp(".*/([^/]+)/$"),\n        "$1"\n      ),\n      path: "/websocket/"\n    },\n    "*",\n    [channel.port2]\n  );\n  return new MessagePortWebSocket(channel.port1);\n};\n';
+
+self.__seenWebRPaths = self.__seenWebRPaths || new Set();
 
 // src/utils.ts
 function sleep(ms) {
@@ -2218,28 +2224,33 @@ function addCoiHeaders(resp) {
 }
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    (async () => {
-      self.skipWaiting();
-
-      const cache = await caches.open(version + cacheName);
-
-      try {
-        const res = await fetch("/MycorrhizeR/precache-manifest.json", {
-          cache: "no-store"
-        });
-
-        const urls = await res.json();
-
-        await Promise.allSettled(
-          urls.map((url) => cache.add(url))
-        );
-
-        console.log("[SW] Precache completed:", urls.length, "files");
-
-      } catch (err) {
-        console.error("[SW] Precache failed", err);
-      }
-    })()
+    Promise.all([
+      self.skipWaiting(),
+      caches.open(version + cacheName).then((cache) => {
+        return cache.addAll([
+          "/MycorrhizeR/",
+          "/MycorrhizeR/index.html",
+          "/MycorrhizeR/manifest.json",
+          "/MycorrhizeR/app.json",
+          "/MycorrhizeR/shinylive/shinylive.js",
+          "/MycorrhizeR/shinylive/shinylive.css",
+          "/MycorrhizeR/shinylive/style-resets.css",
+          "/MycorrhizeR/shinylive/load-shinylive-sw.js",
+          // webR package metadata: critica per l'avvio offline
+          "/MycorrhizeR/shinylive/webr/packages/metadata.rds",
+          // VFS critico emerso dagli errori/log
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations/DESCRIPTION",
+          // file che hai visto nel Network
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/parallel.js.metadata",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/parallel.data.gz",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/tcltk.js.metadata",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/tcltk.data.gz",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.js.metadata",
+          "/MycorrhizeR/shinylive/webr/vfs/usr/lib/R/library/translations.data.gz",
+          "/MycorrhizeR/shinylive/webr/vfs/etc/fonts/fonts.conf"
+        ]);
+      })
+    ])
   );
 });
 self.addEventListener("activate", function(event) {
@@ -2260,6 +2271,10 @@ self.addEventListener("activate", function(event) {
 self.addEventListener("fetch", function(event) {
   const request = event.request;
   const url = new URL(request.url);
+  // TRACK webR paths
+    if (url.pathname.startsWith("/MycorrhizeR/shinylive/webr/")) {
+  self.__seenWebRPaths.add(url.pathname);
+    }
   // LOG TEMPORANEO
   console.log('[SW fetch]', url.pathname, url.hostname);
 
@@ -2438,6 +2453,12 @@ var apps = {};
 })();
 self.addEventListener("message", (event) => {
   const msg = event.data;
+  // DUMP collected paths
+if (msg && msg.type === "dump-webr-paths") {
+  const arr = Array.from(self.__seenWebRPaths).sort();
+  console.log("[WEBR PATHS DUMP]", JSON.stringify(arr, null, 2));
+  return;
+}
   if (msg.type === "configureProxyPath") {
     const path = msg.path;
     const port = event.ports[0];
