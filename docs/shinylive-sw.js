@@ -2240,22 +2240,40 @@ async function precacheWebRAssets() {
   try {
     const cache = await caches.open(version + cacheName);
 
-    const res = await fetch("/MycorrhizeR/precache-manifest.json", {
-      cache: "no-store"
-    });
-    if (!res.ok) {
-      throw new Error(`Manifest fetch failed: ${res.status}`);
+    // prima prova a leggere il manifest dalla cache
+    let res = await caches.match("/MycorrhizeR/precache-manifest.json");
+
+    // se non c'è in cache, prova rete
+    if (!res) {
+      try {
+        res = await fetch("/MycorrhizeR/precache-manifest.json", {
+          cache: "no-store"
+        });
+      } catch (err) {
+        console.log("[SW] Background precache skipped: offline");
+        return;
+      }
+    }
+
+    if (!res || !res.ok) {
+      console.log("[SW] Background precache skipped: manifest unavailable");
+      return;
     }
 
     const urls = await res.json();
 
     await Promise.allSettled(
-      urls.map((url) => cache.add(url))
+      urls.map(async (url) => {
+        const cached = await cache.match(url);
+        if (!cached) {
+          await cache.add(url);
+        }
+      })
     );
 
     console.log("[SW] Background precache complete:", urls.length, "files");
   } catch (err) {
-    console.error("[SW] Background precache failed:", err);
+    console.log("[SW] Background precache skipped");
   }
 }
 

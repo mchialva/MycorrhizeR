@@ -34,7 +34,7 @@
     startupMessage: true
   });
 
-  if (navigator.serviceWorker.controller) {
+  if (navigator.serviceWorker.controller && navigator.onLine) {
     navigator.serviceWorker.controller.postMessage({
       type: "precache-webr-assets"
     });
