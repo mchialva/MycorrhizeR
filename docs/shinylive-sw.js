@@ -2253,8 +2253,34 @@ self.addEventListener("activate", function(event) {
 self.addEventListener("fetch", function(event) {
   const request = event.request;
   const url = new URL(request.url);
-  if (self.location.origin !== url.origin)
+
+  // Cacha anche le risorse webR dal CDN esterno
+  const isWebR = url.hostname.includes('r-wasm.org') ||
+                 url.hostname.includes('webr.r-wasm.org');
+
+  if (self.location.origin !== url.origin && !isWebR)
     return;
+
+  // Per le risorse webR: cache-first per uso offline
+  if (isWebR && request.method === 'GET') {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(version + cacheName).then((cache) => {
+              cache.put(request, clone);
+            });
+          }
+          return response;
+        }).catch(() => {
+          return new Response("WebR resource not available offline", { status: 503 });
+        });
+      })
+    );
+    return;
+  }
   if (url.pathname == "/esbuild")
     return;
   const base_path = dirname(self.location.pathname);
