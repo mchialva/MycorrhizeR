@@ -2218,15 +2218,15 @@ function addCoiHeaders(resp) {
 }
 // set core assets (hardcoded)
 const CORE_ASSETS = [
-  "/MycorrhizeR/",
-  "/MycorrhizeR/index.html",
-  "/MycorrhizeR/manifest.json",
-  "/MycorrhizeR/app.json",
-  "/MycorrhizeR/shinylive/shinylive.js",
-  "/MycorrhizeR/shinylive/shinylive.css",
-  "/MycorrhizeR/shinylive/style-resets.css",
-  "/MycorrhizeR/shinylive/load-shinylive-sw.js",
-  "/MycorrhizeR/precache-manifest.json"
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./app.json",
+  "./shinylive/shinylive.js",
+  "./shinylive/shinylive.css",
+  "./shinylive/style-resets.css",
+  "./shinylive/load-shinylive-sw.js",
+  "./precache-manifest.json"
 ];
 
 self.addEventListener("install", (event) => {
@@ -2242,12 +2242,12 @@ async function precacheWebRAssets() {
     const cache = await caches.open(version + cacheName);
 
     // Check if precache-manifest is already in cache
-    let res = await cache.match("/MycorrhizeR/precache-manifest.json");
+    let res = await cache.match("./precache-manifest.json");
 
     // If not try to download it
     if (!res) {
       try {
-        res = await fetch("/MycorrhizeR/precache-manifest.json", {
+        res = await fetch("./precache-manifest.json", {
           cache: "no-store"
         });
       } catch (err) {
@@ -2332,8 +2332,8 @@ self.addEventListener("fetch", function(event) {
     return;
   }
   
-    const isLocalWebRVFS = url.pathname.startsWith("/MycorrhizeR/shinylive/webr/vfs/");
-    const isLocalWebRPackages = url.pathname.startsWith("/MycorrhizeR/shinylive/webr/packages/");
+    const isLocalWebRVFS = url.pathname.startsWith("./shinylive/webr/vfs/");
+    const isLocalWebRPackages = url.pathname.startsWith("./shinylive/webr/packages/");
 
     if ((isLocalWebRVFS || isLocalWebRPackages) && request.method === "GET") {
       event.respondWith(
