@@ -2216,6 +2216,7 @@ function addCoiHeaders(resp) {
     headers
   });
 }
+// set core assets (hardcoded)
 const CORE_ASSETS = [
   "/MycorrhizeR/",
   "/MycorrhizeR/index.html",
@@ -2240,10 +2241,10 @@ async function precacheWebRAssets() {
   try {
     const cache = await caches.open(version + cacheName);
 
-    // Prima prova il manifest già precachato
+    // Check if precache-manifest is already in cache
     let res = await cache.match("/MycorrhizeR/precache-manifest.json");
 
-    // Se non è in cache, prova la rete
+    // If not try to download it
     if (!res) {
       try {
         res = await fetch("/MycorrhizeR/precache-manifest.json", {
@@ -2262,9 +2263,9 @@ async function precacheWebRAssets() {
 
     const urls = await res.json();
 
-    // Batch da 5, come proponeva il tuo collega
-    for (let i = 0; i < urls.length; i += 5) {
-      const batch = urls.slice(i, i + 5);
+    // cache webR VFS files in batch of ten
+    for (let i = 0; i < urls.length; i += 10) {
+      const batch = urls.slice(i, i + 10);
 
       await Promise.allSettled(
         batch.map(async (url) => {
@@ -2310,7 +2311,7 @@ self.addEventListener("fetch", function(event) {
   if (self.location.origin !== url.origin && !isWebR)
     return;
 
-  // Per le risorse webR: cache-first per uso offline
+  // cache-first webR resources for offline use
   if (isWebR && request.method === 'GET') {
     event.respondWith(
       caches.match(request).then((cached) => {
@@ -2389,7 +2390,7 @@ if (m_appPath) {
           pollCount--;
         }
 
-        // normalizza il path per fetchASGI
+        // normalise path for fetchASGI
         url.pathname = url.pathname.replace(appPathRegex, "/");
 
         const isAppRoot = url.pathname === "/";
@@ -2420,7 +2421,7 @@ if (m_appPath) {
       } catch (err) {
         console.error("[SW app fetch error]", url.toString(), err);
 
-        // fallback: evita promise rejected
+        // fallback: avoid promise rejected
         return new Response(
           "App request failed in service worker",
           {
