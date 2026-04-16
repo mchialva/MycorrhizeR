@@ -2240,10 +2240,10 @@ async function precacheWebRAssets() {
   try {
     const cache = await caches.open(version + cacheName);
 
-    // prima prova a leggere il manifest dalla cache
-    let res = await caches.match("/MycorrhizeR/precache-manifest.json");
+    // Prima prova il manifest già precachato
+    let res = await cache.match("/MycorrhizeR/precache-manifest.json");
 
-    // se non c'è in cache, prova rete
+    // Se non è in cache, prova la rete
     if (!res) {
       try {
         res = await fetch("/MycorrhizeR/precache-manifest.json", {
@@ -2262,14 +2262,19 @@ async function precacheWebRAssets() {
 
     const urls = await res.json();
 
-    await Promise.allSettled(
-      urls.map(async (url) => {
-        const cached = await cache.match(url);
-        if (!cached) {
-          await cache.add(url);
-        }
-      })
-    );
+    // Batch da 5, come proponeva il tuo collega
+    for (let i = 0; i < urls.length; i += 5) {
+      const batch = urls.slice(i, i + 5);
+
+      await Promise.allSettled(
+        batch.map(async (url) => {
+          const cached = await cache.match(url);
+          if (!cached) {
+            await cache.add(url);
+          }
+        })
+      );
+    }
 
     console.log("[SW] Background precache complete:", urls.length, "files");
   } catch (err) {
@@ -2471,18 +2476,22 @@ var apps = {};
     });
   }
 })();
+
 self.addEventListener("message", (event) => {
   const msg = event.data;
+
   if (msg && msg.type === "precache-webr-assets") {
     event.waitUntil(precacheWebRAssets());
     return;
   }
-  if (msg.type === "configureProxyPath") {
+
+  if (msg && msg.type === "configureProxyPath") {
     const path = msg.path;
     const port = event.ports[0];
     apps[path] = port;
   }
 });
+
 function identityFilter(bodyChunk, response) {
   return bodyChunk;
 }
