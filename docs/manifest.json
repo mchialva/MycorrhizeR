@@ -1,11 +1,11 @@
 {
   "name": "MycorrhizeR",
-  "short_name": "MycR",
+  "short_name": "MycorrhizeR",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#007bff",
+  "theme_color": "#ffffff",
   "description": "MycorrhizeR - Progressive Web App",
   "icons": [
     {
