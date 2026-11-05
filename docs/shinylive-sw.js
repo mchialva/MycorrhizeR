@@ -1838,7 +1838,7 @@ function asgiToRes(res, body) {
 // src/shinylive-sw.ts
 var useCaching = true;
 var cacheName = "::shinyliveServiceworker";
-var version = "v0.3";
+var version = "0.3";
 function addCoiHeaders(resp) {
   const headers = new Headers(resp.headers);
   headers.set("Cross-Origin-Embedder-Policy", "require-corp");
@@ -1879,7 +1879,7 @@ self.addEventListener("install", (event) => {
     // ma salva le risposte con gli header COOP/COEP.
     await Promise.all(
       CORE_ASSETS.map(async (url) => {
-        const resp = await fetch(url, { cache: "reload" });
+        const resp = await fetch(url);
         if (!resp.ok) throw new Error("Precache failed: " + url + " " + resp.status);
         await cache.put(url, addCoiHeaders(resp));
       })
@@ -1911,19 +1911,21 @@ async function precacheWebRAssets() {
 
     const urls = await res.json();
 
-    // cache webR VFS files in batch of ten
-    for (let i = 0; i < urls.length; i += 10) {
-      const batch = urls.slice(i, i + 10);
+    // cache webR VFS files in piccoli lotti, a bassa priorita', per non
+    // competere con quello che l'app sta scaricando
+    for (let i = 0; i < urls.length; i += 4) {
+      const batch = urls.slice(i, i + 4);
 
       await Promise.allSettled(
         batch.map(async (url) => {
           const cached = await cache.match(url);
           if (!cached) {
-            const resp = await fetch(url);
+            const resp = await fetch(url, { priority: "low" });
             if (resp.ok) await cache.put(url, addCoiHeaders(resp));
           }
         })
       );
+      await sleep(150);
     }
 
     console.log("[SW] Background precache complete:", urls.length, "files");
@@ -2029,6 +2031,34 @@ self.addEventListener("fetch", function(event) {
             status: 504,
             headers: { "Content-Type": "text/plain" }
           });
+        }
+      })()
+    );
+    return;
+  }
+  // HEAD (usate da Emscripten per leggere la dimensione dei file "lazy" di webR):
+  // servite dalla cache, altrimenti offline falliscono con NetworkError
+  if (request.method === "HEAD" && useCaching && self.location.origin === url.origin) {
+    event.respondWith(
+      (async () => {
+        const cached = await caches.match(request, { ignoreMethod: true });
+        if (cached) {
+          const headers = new Headers(cached.headers);
+          if (headers.has("content-encoding")) {
+            // il corpo in cache e' gia' decompresso: allinea la lunghezza
+            headers.set("content-length", String((await cached.clone().blob()).size));
+            headers.delete("content-encoding");
+          }
+          return new Response(null, {
+            status: cached.status,
+            statusText: cached.statusText,
+            headers
+          });
+        }
+        try {
+          return addCoiHeaders(await fetch(request));
+        } catch {
+          return new Response(null, { status: 404 });
         }
       })()
     );
